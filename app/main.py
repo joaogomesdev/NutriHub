@@ -9,7 +9,7 @@ def inicio():
 
 @app.get("/usuario")
 def obter_usuario():
-    usuario = Usuario(
+    usuario = Usuario( # Criando o nosso objeto
         "Asafe",
         "asafe@gmail.com",
         "123456"
