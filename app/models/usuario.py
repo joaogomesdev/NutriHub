@@ -1,4 +1,15 @@
-class Usuario: # Nossa classe usuario
+from sqlalchemy import Column, Integer, String
+from app.database.database import Base
+
+class Usuario(Base): 
+    __tablename__= "usuarios" # Atributo especial do SQLAlchemy para saber o nome da tablela do bd.
+    
+    # Nossa classe usuario
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String)
+    email = Column(String)
+    senha = Column(String) # Não ficará assim, implantaremos autenticação com o hash.
 
     def __init__(self, nome, email, senha): # Nossos atributos
         self.nome = nome
