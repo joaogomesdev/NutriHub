@@ -8,7 +8,7 @@ class Usuario(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String)
-    email = Column(String)
+    email = Column(String, unique=True)
     senha = Column(String) # Não ficará assim, implantaremos autenticação com o hash.
 
     def __init__(self, nome, email, senha): # Nossos atributos
