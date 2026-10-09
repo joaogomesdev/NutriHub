@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean
 from app.database.database import Base
 
 class Usuario(Base): 
@@ -22,3 +22,9 @@ class Usuario(Base):
 
     def validar_senha(self, senha):
         return self.senha == senha
+
+    questionario_concluido = Column(
+    Boolean,
+    nullable=False,
+    default=False
+)

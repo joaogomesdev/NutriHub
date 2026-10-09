@@ -12,6 +12,8 @@ from jwt import InvalidTokenError
 from app.utils.auth import validar_token
 from app.models.objetivo_nutricional import ObjetivoNutricional
 from app.schemas.objetivo_schema import (ObjetivoNutricionalSchema, ObjetivoNutricionalResponse)
+from app.models.questionario import Questionario
+from app.schemas.questionario_schema import (QuestionarioSchema, QuestionarioResponse)
 
 app = FastAPI() # Criando um objeto da classe FastAPI
 
@@ -277,3 +279,51 @@ def atualizar_objetivo(
     db.refresh(objetivo)
 
     return objetivo
+
+
+    # Rotas para o Qustionario.
+
+
+@app.post(  # Função para autenticar o usuário que está fazendo o Questionario.
+    "/questionario",
+    response_model=QuestionarioResponse,
+    status_code=201
+)
+def criar_questionario(
+    dados: QuestionarioSchema,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    if usuario.questionario_concluido:
+        raise HTTPException(
+            status_code=409,
+            detail="O questionário já foi concluído."
+        )
+
+    questionario_existente = db.query(Questionario).filter(
+        Questionario.usuario_id == usuario.id
+    ).first()
+
+    if questionario_existente:
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um questionário para este usuário."
+        )
+
+    novo_questionario = Questionario(
+        usuario_id=usuario.id,
+        idade=dados.idade,
+        peso=dados.peso,
+        altura=dados.altura,
+        nivel_atividade=dados.nivel_atividade.value,
+        restricao_alimentar=dados.restricao_alimentar.value,
+        refeicoes_por_dia=dados.refeicoes_por_dia
+    )
+
+    db.add(novo_questionario)
+    usuario.questionario_concluido = True
+
+    db.commit()
+    db.refresh(novo_questionario)
+
+    return novo_questionario
