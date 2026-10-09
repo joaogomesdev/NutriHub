@@ -10,13 +10,15 @@ from app.utils.auth import criar_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jwt import InvalidTokenError
 from app.utils.auth import validar_token
+from app.models.objetivo_nutricional import ObjetivoNutricional
+from app.schemas.objetivo_schema import (ObjetivoNutricionalSchema, ObjetivoNutricionalResponse)
 
 app = FastAPI() # Criando um objeto da classe FastAPI
 
 security = HTTPBearer(auto_error=False)
 
 
-def obter_usuario_autenticado(
+def obter_usuario_autenticado(  # Função para autenticar o usuário usando o id e o token.
     credenciais: HTTPAuthorizationCredentials | None = Security(security),
     db: Session = Depends(get_db)
 ):
@@ -193,3 +195,85 @@ def meu_usuario(
     usuario: Usuario = Depends(obter_usuario_autenticado)
 ):
     return usuario
+
+
+    # Rotas para o objetivo Nutricional
+
+
+@app.post(  # Função para cadastrar o Objetivo Nutricional
+    "/objetivo-nutricional",
+    response_model=ObjetivoNutricionalResponse
+)
+def criar_objetivo(
+    dados: ObjetivoNutricionalSchema,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    objetivo_existente = db.query(ObjetivoNutricional).filter(
+        ObjetivoNutricional.usuario_id == usuario.id
+    ).first()
+
+    if objetivo_existente:
+        raise HTTPException(
+            status_code=409,
+            detail="Você já possui um objetivo cadastrado"
+        )
+
+    novo_objetivo = ObjetivoNutricional(
+        usuario_id=usuario.id,
+        objetivo=dados.objetivo
+    )
+
+    db.add(novo_objetivo)
+    db.commit()
+    db.refresh(novo_objetivo)
+
+    return novo_objetivo
+
+
+@app.get(  # Função para pegar o Objetivo Nutricional
+    "/objetivo-nutricional",
+    response_model=ObjetivoNutricionalResponse
+)
+def obter_objetivo(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    objetivo = db.query(ObjetivoNutricional).filter(
+        ObjetivoNutricional.usuario_id == usuario.id
+    ).first()
+
+    if not objetivo:
+        raise HTTPException(
+            status_code=404,
+            detail="Objetivo nutricional não encontrado"
+        )
+
+    return objetivo
+
+
+@app.put(  # Funcao para atualizar o Objetivo Nutricional
+    "/objetivo-nutricional",
+    response_model=ObjetivoNutricionalResponse
+)
+def atualizar_objetivo(
+    dados: ObjetivoNutricionalSchema,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    objetivo = db.query(ObjetivoNutricional).filter(
+        ObjetivoNutricional.usuario_id == usuario.id
+    ).first()
+
+    if not objetivo:
+        raise HTTPException(
+            status_code=404,
+            detail="Objetivo nutricional não encontrado"
+        )
+
+    objetivo.objetivo = dados.objetivo
+
+    db.commit()
+    db.refresh(objetivo)
+
+    return objetivo

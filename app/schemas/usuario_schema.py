@@ -1,6 +1,6 @@
 from pydantic import BaseModel # Validação dos dados recebidos do front-end
 
-# Nosso tratamento de entrada e saída de dados.
+# Nosso tratamento de entrada e saída de dados do usuário.
 
 class UsuarioSchema(BaseModel):  # Representa os dados necessários para cadastrar ou atualizar um usuário.
     nome: str
