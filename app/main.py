@@ -1,11 +1,54 @@
-from fastapi import FastAPI, Depends, HTTPException # Importando o FastAPI da biblioteca fastapi
+from fastapi import FastAPI, Depends, HTTPException, Security # Importando o FastAPI da biblioteca fastapi
 from sqlalchemy.orm import Session
 from app.models.usuario import Usuario # Importando nossa classe "Usuario"
 from app.schemas.usuario_schema import UsuarioSchema, UsuarioResponse
 from app.database.database import Base, engine, get_db
 from app.utils.senha import criar_hash
+from app.schemas.usuario_schema import UsuarioLogin
+from app.utils.senha import verificar_senha
+from app.utils.auth import criar_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jwt import InvalidTokenError
+from app.utils.auth import validar_token
 
 app = FastAPI() # Criando um objeto da classe FastAPI
+
+security = HTTPBearer(auto_error=False)
+
+
+def obter_usuario_autenticado(
+    credenciais: HTTPAuthorizationCredentials | None = Security(security),
+    db: Session = Depends(get_db)
+):
+    if credenciais is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Token não fornecido",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    try:
+        dados_token = validar_token(credenciais.credentials)
+        usuario_id = int(dados_token["sub"])
+    except (InvalidTokenError, KeyError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=401,
+            detail="Token inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    usuario = db.query(Usuario).filter(
+        Usuario.id == usuario_id
+    ).first()
+
+    if usuario is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Usuário não encontrado",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    return usuario
 
 Base.metadata.create_all(bind=engine)
 
@@ -100,3 +143,53 @@ def criar_usuario(
     db.refresh(novo_usuario)
     
     return novo_usuario
+
+@app.delete("/usuario/{usuario_id}")
+def excluir_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db)
+):
+    usuario = db.query(Usuario).filter(
+        Usuario.id == usuario_id
+    ).first()
+
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuário não encontrado"
+        )
+
+    db.delete(usuario)
+    db.commit()
+
+    return {"mensagem": "Usuário excluído com sucesso"}
+
+@app.post("/login")  # Funcao de login com uma conta já criada.
+def login(
+    dados: UsuarioLogin,
+    db: Session = Depends(get_db)
+):
+    usuario = db.query(Usuario).filter(
+        Usuario.email == dados.email
+    ).first()
+
+    if not usuario or not verificar_senha(
+        dados.senha, usuario.senha
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Email ou senha incorretos"
+        )
+
+    token = criar_token(usuario.id)
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
+
+@app.get("/me", response_model=UsuarioResponse)
+def meu_usuario(
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    return usuario
