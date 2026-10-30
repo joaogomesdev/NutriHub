@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import create_engine, event
 
 # Preparando o ambiente e a comunicação do BD com o Back-End.
 
@@ -9,6 +10,12 @@ engine = create_engine(  # Mecanismo de comunicação.
     DATABASE_URL,
     connect_args={"check_same_thread": False}
     ) 
+
+@event.listens_for(engine, "connect") # Ativar a fiscalicacao de chaves segundarias.
+def ativar_chaves_estrangeiras(conexao, registro):
+    cursor = conexao.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 SessionLocal = sessionmaker(bind=engine) # Fábrica de sessões.
 

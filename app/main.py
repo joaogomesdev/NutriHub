@@ -60,48 +60,35 @@ Base.metadata.create_all(bind=engine)
 def inicio():
     return {"mensagem": "Olá! nosso projeto Nutri começou!"}
 
-@app.get("/usuario", response_model=list[UsuarioResponse])
-def obter_usuario(
-    db: Session = Depends(get_db)
-):
-    usuario = db.query(Usuario).all()
-
-    return usuario
-
 @app.get("/usuario/{usuario_id}", response_model=UsuarioResponse) # Funcao pra pegar o usuario pelo id
-def obter_usuario(usuario_id: int, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(
-        Usuario.id == usuario_id
-    ).first() # Esse "first" pega o primeiro resultado
-
-    if not usuario:
+def obter_usuario_por_id(
+    usuario_id: int,
+    usuario_atual: Usuario = Depends(obter_usuario_autenticado)
+):
+    if  usuario_id != usuario_atual.id:
         raise HTTPException(
-                status_code=409,
-                detail="Usuario não encontrado"
+                status_code=403,
+                detail="Você não tem permisão para acessar esse usuário"
         )
 
-    return usuario
+    return usuario_atual
 
 @app.put("/usuario/{usuario_id}", response_model=UsuarioResponse) # Funcao para atualizar os dados do usuario.
 def atualizar_usuario(
     usuario_id: int,
-    usuario: UsuarioSchema,
-    db: Session = Depends(get_db)
+    dados: UsuarioSchema,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(obter_usuario_autenticado)
 ):
-
-    usuario_existente = db.query(Usuario).filter(
-        Usuario.id == usuario_id
-    ).first()
-
-    if not usuario_existente:
+    if usuario_id != usuario_atual.id:
         raise HTTPException(
-            status_code=404,
-            detail="Usuario não encontrado"
+                status_code=403,
+                detail="Você não tem permisão para alterar esse usuário"
         )
-
+    
     email_existente = db.query(Usuario).filter(
-        Usuario.email == usuario.email,
-        Usuario.id != usuario_id
+        Usuario.email == dados.email,
+        Usuario.id != usuario_atual.id
     ).first()
 
     if email_existente:
@@ -110,14 +97,14 @@ def atualizar_usuario(
             detail="Email já cadastrado por outro usuário"
         )
 
-    usuario_existente.nome = usuario.nome
-    usuario_existente.email = usuario.email
-    usuario_existente.senha = criar_hash(usuario.senha)
+    usuario_atual.nome = dados.nome
+    usuario_atual.email = dados.email
+    usuario_atual.senha = criar_hash(dados.senha)
 
     db.commit()
-    db.refresh(usuario_existente)
+    db.refresh(usuario_atual)
 
-    return usuario_existente
+    return usuario_atual
 
 @app.post("/usuario", response_model=UsuarioResponse) # Funcao para criar nosso usuario
 def criar_usuario(
@@ -137,9 +124,9 @@ def criar_usuario(
     senha_hash = criar_hash(usuario.senha)
     
     novo_usuario = Usuario( # Objeto da nossa classe Usuario
-        usuario.nome,
-        usuario.email,
-        senha_hash
+        nome=usuario.nome,
+        email=usuario.email,
+        senha=senha_hash
     )
 
     db.add(novo_usuario)
@@ -148,25 +135,48 @@ def criar_usuario(
     
     return novo_usuario
 
+
 @app.delete("/usuario/{usuario_id}")
 def excluir_usuario(
     usuario_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(obter_usuario_autenticado)
 ):
-    usuario = db.query(Usuario).filter(
-        Usuario.id == usuario_id
-    ).first()
-
-    if not usuario:
+    if usuario_id != usuario_atual.id:
         raise HTTPException(
-            status_code=404,
-            detail="Usuário não encontrado"
+            status_code=403,
+            detail="Você não tem permissão para excluir este usuário"
         )
 
-    db.delete(usuario)
-    db.commit()
+    try:
+        # Exclui o questionário associado à conta, se existir.
+        questionario = db.query(Questionario).filter(
+            Questionario.usuario_id == usuario_atual.id
+        ).first()
 
-    return {"mensagem": "Usuário excluído com sucesso"}
+        if questionario:
+            db.delete(questionario)
+
+        # Exclui o objetivo nutricional associado, se existir.
+        objetivo = db.query(ObjetivoNutricional).filter(
+            ObjetivoNutricional.usuario_id == usuario_atual.id
+        ).first()
+
+        if objetivo:
+            db.delete(objetivo)
+
+        # Por último, exclui a conta.
+        db.delete(usuario_atual)
+        db.commit()
+
+        return {"mensagem": "Usuário excluído com sucesso"}
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível excluir a conta"
+        )
 
 @app.post("/login")  # Funcao de login com uma conta já criada.
 def login(

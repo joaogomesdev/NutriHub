@@ -1,7 +1,8 @@
+
 from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
 from app.database.database import Base
 
-        # Tebela para registrar o objetivo do usuário.
 
 class ObjetivoNutricional(Base):
     __tablename__ = "objetivos_nutricionais"
@@ -10,9 +11,14 @@ class ObjetivoNutricional(Base):
 
     usuario_id = Column(
         Integer,
-        ForeignKey("usuarios.id"),
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
         unique=True,
         nullable=False
     )
 
     objetivo = Column(String, nullable=False)
+
+    usuario = relationship(
+        "Usuario",
+        back_populates="objetivo_nutricional"
+    )

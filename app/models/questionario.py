@@ -1,4 +1,6 @@
+
 from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy.orm import relationship
 from app.database.database import Base
 
 
@@ -9,7 +11,7 @@ class Questionario(Base):
 
     usuario_id = Column(
         Integer,
-        ForeignKey("usuarios.id"),
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
         unique=True,
         nullable=False
     )
@@ -20,3 +22,8 @@ class Questionario(Base):
     nivel_atividade = Column(String, nullable=False)
     restricao_alimentar = Column(String, nullable=False)
     refeicoes_por_dia = Column(Integer, nullable=False)
+
+    usuario = relationship(
+        "Usuario",
+        back_populates="questionario"
+    )
