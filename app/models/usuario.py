@@ -41,6 +41,3 @@ class Usuario(Base):
 
     def alterar_email(self, novo_email):
         self.email = novo_email
-
-    def validar_senha(self, senha):
-        return self.senha == senha
