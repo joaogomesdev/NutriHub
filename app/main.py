@@ -3,9 +3,8 @@ from sqlalchemy.orm import Session
 from app.models.usuario import Usuario # Importando nossa classe "Usuario"
 from app.schemas.usuario_schema import UsuarioSchema, UsuarioResponse
 from app.database.database import Base, engine, get_db
-from app.utils.senha import criar_hash
+from app.utils.senha import criar_hash, verificar_senha
 from app.schemas.usuario_schema import UsuarioLogin
-from app.utils.senha import verificar_senha
 from app.utils.auth import criar_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jwt import InvalidTokenError
@@ -329,6 +328,26 @@ def criar_questionario(
         restricao_alimentar=dados.restricao_alimentar.value,
         refeicoes_por_dia=dados.refeicoes_por_dia
     )
+
+@app.get(
+    "/questionario",
+    response_model=QuestionarioResponse
+)
+def obter_questionario(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    questionario = db.query(Questionario).filter(
+        Questionario.usuario_id == usuario.id
+    ).first()
+
+    if not questionario:
+        raise HTTPException(
+            status_code=404,
+            detail="Questionário não encontrado"
+        )
+
+    return questionario
 
     db.add(novo_questionario)
     usuario.questionario_concluido = True
