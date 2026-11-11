@@ -1,18 +1,60 @@
-from fastapi import FastAPI, Depends, HTTPException, Security # Importando o FastAPI da biblioteca fastapi
-from sqlalchemy.orm import Session
-from app.models.usuario import Usuario # Importando nossa classe "Usuario"
-from app.schemas.usuario_schema import UsuarioSchema, UsuarioResponse
-from app.database.database import Base, engine, get_db
-from app.utils.senha import criar_hash, verificar_senha
-from app.schemas.usuario_schema import UsuarioLogin
-from app.utils.auth import criar_token
+
+# ==========================================
+# 1. BIBLIOTECAS EXTERNAS
+# ==========================================
+
+from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jwt import InvalidTokenError
-from app.utils.auth import validar_token
+from sqlalchemy.orm import Session
+
+
+# ==========================================
+# 2. BANCO DE DADOS
+# ==========================================
+
+from app.database.database import Base, engine, get_db
+
+
+# ==========================================
+# 3. MODELS
+# ==========================================
+
+from app.models.usuario import Usuario
 from app.models.objetivo_nutricional import ObjetivoNutricional
-from app.schemas.objetivo_schema import (ObjetivoNutricionalSchema, ObjetivoNutricionalResponse)
 from app.models.questionario import Questionario
-from app.schemas.questionario_schema import (QuestionarioSchema, QuestionarioResponse)
+from app.models.resposta_questionario import RespostaQuestionario
+
+
+# ==========================================
+# 4. SCHEMAS
+# ==========================================
+
+from app.schemas.usuario_schema import (
+    UsuarioLogin,
+    UsuarioSchema,
+    UsuarioResponse
+)
+
+from app.schemas.objetivo_schema import (
+    ObjetivoNutricionalSchema,
+    ObjetivoNutricionalResponse
+)
+
+from app.schemas.questionario_schema import (
+    QuestionarioResponse,
+    RespostaQuestionarioSchema
+)
+
+
+# ==========================================
+# 5. UTILITÁRIOS
+# ==========================================
+
+from app.utils.senha import criar_hash, verificar_senha
+from app.utils.auth import criar_token, validar_token
+
+# ==========================================
 
 app = FastAPI() # Criando um objeto da classe FastAPI
 
@@ -53,7 +95,9 @@ def obter_usuario_autenticado(  # Função para autenticar o usuário usando o i
 
     return usuario
 
-Base.metadata.create_all(bind=engine)
+    
+Base.metadata.create_all(bind=engine) # Cria tabelas que ainda não existem
+
 
 @app.get("/") # Quando alguém acessar o endereço "/" usando GET, execute a função que vem logo abaixo.
 def inicio():
@@ -211,10 +255,7 @@ def meu_usuario(
     # Rotas para o objetivo Nutricional
 
 
-@app.post(  # Função para cadastrar o Objetivo Nutricional
-    "/objetivo-nutricional",
-    response_model=ObjetivoNutricionalResponse
-)
+@app.post("/objetivo-nutricional", response_model=ObjetivoNutricionalResponse) # Função para cadastrar o Objetivo Nutricional
 def criar_objetivo(
     dados: ObjetivoNutricionalSchema,
     db: Session = Depends(get_db),
@@ -263,10 +304,7 @@ def obter_objetivo(
     return objetivo
 
 
-@app.put(  # Funcao para atualizar o Objetivo Nutricional
-    "/objetivo-nutricional",
-    response_model=ObjetivoNutricionalResponse
-)
+@app.put("/objetivo-nutricional", response_model=ObjetivoNutricionalResponse) # Funcao para atualizar o Objetivo Nutricional
 def atualizar_objetivo(
     dados: ObjetivoNutricionalSchema,
     db: Session = Depends(get_db),
@@ -292,47 +330,30 @@ def atualizar_objetivo(
 
     # Rotas para o Qustionario.
 
-
-@app.post(  # Função para autenticar o usuário que está fazendo o Questionario.
-    "/questionario",
-    response_model=QuestionarioResponse,
-    status_code=201
-)
+@app.post("/questionario", response_model=QuestionarioResponse)
 def criar_questionario(
-    dados: QuestionarioSchema,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obter_usuario_autenticado)
 ):
-    if usuario.questionario_concluido:
-        raise HTTPException(
-            status_code=409,
-            detail="O questionário já foi concluído."
-        )
-
     questionario_existente = db.query(Questionario).filter(
         Questionario.usuario_id == usuario.id
     ).first()
 
     if questionario_existente:
-        raise HTTPException(
-            status_code=409,
-            detail="Já existe um questionário para este usuário."
-        )
+        return questionario_existente
 
     novo_questionario = Questionario(
-        usuario_id=usuario.id,
-        idade=dados.idade,
-        peso=dados.peso,
-        altura=dados.altura,
-        nivel_atividade=dados.nivel_atividade.value,
-        restricao_alimentar=dados.restricao_alimentar.value,
-        refeicoes_por_dia=dados.refeicoes_por_dia
+        usuario_id=usuario.id
     )
 
-@app.get(
-    "/questionario",
-    response_model=QuestionarioResponse
-)
+    db.add(novo_questionario)
+    db.commit()
+    db.refresh(novo_questionario)
+
+    return novo_questionario
+
+
+@app.get("/questionario", response_model=QuestionarioResponse)
 def obter_questionario(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obter_usuario_autenticado)
@@ -349,10 +370,128 @@ def obter_questionario(
 
     return questionario
 
-    db.add(novo_questionario)
+
+@app.put("/questionario/resposta")
+def salvar_resposta(
+    dados: RespostaQuestionarioSchema,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    # 1. Busca o questionário do usuário.
+    questionario = db.query(Questionario).filter(
+        Questionario.usuario_id == usuario.id
+    ).first()
+
+    if not questionario:
+        raise HTTPException(
+            status_code=404,
+            detail="Questionário não encontrado. Inicie primeiro."
+        )
+
+    if questionario.status == "concluido":
+        raise HTTPException(
+            status_code=409,
+            detail="Este questionário já foi concluído."
+        )
+
+    # 2. Descobre o número da pergunta.
+    numero_pergunta = int(dados.pergunta_codigo[1:])
+
+    # Não permite responder perguntas futuras.
+    if numero_pergunta > questionario.pergunta_atual:
+        raise HTTPException(
+            status_code=409,
+            detail="Responda as perguntas na ordem correta."
+        )
+
+    # 3. Procura uma resposta já cadastrada.
+    resposta_existente = db.query(RespostaQuestionario).filter(
+        RespostaQuestionario.questionario_id == questionario.id,
+        RespostaQuestionario.pergunta_codigo == dados.pergunta_codigo
+    ).first()
+
+    # 4. Atualiza ou cria a resposta.
+    if resposta_existente:
+        resposta_existente.resposta = dados.resposta
+    else:
+        nova_resposta = RespostaQuestionario(
+            questionario_id=questionario.id,
+            pergunta_codigo=dados.pergunta_codigo,
+            resposta=dados.resposta
+        )
+
+        db.add(nova_resposta)
+
+    # 5. Atualiza o progresso somente se for a pergunta atual.
+    if numero_pergunta == questionario.pergunta_atual:
+
+        if numero_pergunta < 27:
+            questionario.pergunta_atual += 1
+
+        # Atualiza o bloco conforme a próxima pergunta.
+        if questionario.pergunta_atual <= 4:
+            questionario.bloco_atual = 1
+        elif questionario.pergunta_atual <= 8:
+            questionario.bloco_atual = 2
+        elif questionario.pergunta_atual <= 13:
+            questionario.bloco_atual = 3
+        elif questionario.pergunta_atual <= 18:
+            questionario.bloco_atual = 4
+        elif questionario.pergunta_atual <= 23:
+            questionario.bloco_atual = 5
+        else:
+            questionario.bloco_atual = 6
+
+    db.commit()
+
+    return {
+        "mensagem": "Resposta salva com sucesso!",
+        "pergunta_codigo": dados.pergunta_codigo,
+        "proxima_pergunta": questionario.pergunta_atual,
+        "bloco_atual": questionario.bloco_atual
+    }
+
+
+@app.post("/questionario/concluir") # Chegar se o questionário foi concluído.
+def concluir_questionario(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    # 1. Busca o questionário do usuário.
+    questionario = db.query(Questionario).filter(
+        Questionario.usuario_id == usuario.id
+    ).first()
+
+    if not questionario:
+        raise HTTPException(
+            status_code=404,
+            detail="Questionário não encontrado."
+        )
+
+    # 2. Verifica se já foi concluído.
+    if questionario.status == "concluido":
+        raise HTTPException(
+            status_code=409,
+            detail="Este questionário já foi concluído."
+        )
+
+    # 3. Conta quantas perguntas foram respondidas.
+    total_respostas = db.query(RespostaQuestionario).filter(
+        RespostaQuestionario.questionario_id == questionario.id
+    ).count()
+
+    if total_respostas < 27:
+        raise HTTPException(
+            status_code=409,
+            detail="Responda todas as 27 perguntas antes de concluir."
+        )
+
+    # 4. Atualiza o status do questionário e do usuário.
+    questionario.status = "concluido"
     usuario.questionario_concluido = True
 
     db.commit()
-    db.refresh(novo_questionario)
 
-    return novo_questionario
+    return {
+        "mensagem": "Questionário concluído com sucesso!"
+    }

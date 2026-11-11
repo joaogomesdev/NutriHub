@@ -1,8 +1,8 @@
-
-from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database.database import Base
 
+        # Modelo da tabela Questionario do nosso banco de dados.
 
 class Questionario(Base):
     __tablename__ = "questionarios"
@@ -16,14 +16,32 @@ class Questionario(Base):
         nullable=False
     )
 
-    idade = Column(Integer, nullable=False)
-    peso = Column(Float, nullable=False)
-    altura = Column(Float, nullable=False)
-    nivel_atividade = Column(String, nullable=False)
-    restricao_alimentar = Column(String, nullable=False)
-    refeicoes_por_dia = Column(Integer, nullable=False)
+    status = Column(
+        String,
+        nullable=False,
+        default="em_andamento"
+    )
+
+    bloco_atual = Column(
+        Integer,
+        nullable=False,
+        default=1
+    )
+
+    pergunta_atual = Column(
+        Integer,
+        nullable=False,
+        default=1
+    )
 
     usuario = relationship(
         "Usuario",
         back_populates="questionario"
+    )
+
+    respostas = relationship(
+        "RespostaQuestionario",
+        back_populates="questionario",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )
