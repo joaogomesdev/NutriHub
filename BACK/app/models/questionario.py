@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
-from app.database.database import Base
+from BD.database import Base
 
         # Modelo da tabela Questionario do nosso banco de dados.
 
