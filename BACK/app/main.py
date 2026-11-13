@@ -1,10 +1,10 @@
-
 # ==========================================
 # 1. BIBLIOTECAS EXTERNAS
 # ==========================================
 
 from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 
@@ -13,35 +13,35 @@ from sqlalchemy.orm import Session
 # 2. BANCO DE DADOS
 # ==========================================
 
-from app.database.database import Base, engine, get_db
+from BD.database import Base, engine, get_db
 
 
 # ==========================================
 # 3. MODELS
 # ==========================================
 
-from app.models.usuario import Usuario
-from app.models.objetivo_nutricional import ObjetivoNutricional
-from app.models.questionario import Questionario
-from app.models.resposta_questionario import RespostaQuestionario
+from BACK.app.models.usuario import Usuario
+from BACK.app.models.objetivo_nutricional import ObjetivoNutricional
+from BACK.app.models.questionario import Questionario
+from BACK.app.models.resposta_questionario import RespostaQuestionario
 
 
 # ==========================================
 # 4. SCHEMAS
 # ==========================================
 
-from app.schemas.usuario_schema import (
+from BACK.app.schemas.usuario_schema import (
     UsuarioLogin,
     UsuarioSchema,
     UsuarioResponse
 )
 
-from app.schemas.objetivo_schema import (
+from BACK.app.schemas.objetivo_schema import (
     ObjetivoNutricionalSchema,
     ObjetivoNutricionalResponse
 )
 
-from app.schemas.questionario_schema import (
+from BACK.app.schemas.questionario_schema import (
     QuestionarioResponse,
     RespostaQuestionarioSchema
 )
@@ -51,12 +51,23 @@ from app.schemas.questionario_schema import (
 # 5. UTILITÁRIOS
 # ==========================================
 
-from app.utils.senha import criar_hash, verificar_senha
-from app.utils.auth import criar_token, validar_token
+from BACK.app.utils.senha import criar_hash, verificar_senha
+from BACK.app.utils.auth import criar_token, validar_token
 
 # ==========================================
 
 app = FastAPI() # Criando um objeto da classe FastAPI
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500"
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 security = HTTPBearer(auto_error=False)
 
