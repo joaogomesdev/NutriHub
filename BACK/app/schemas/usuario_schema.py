@@ -11,6 +11,7 @@ class UsuarioResponse(BaseModel):
     id: int
     nome: str
     email: str
+    questionario_concluido: bool
 
     model_config = {
         "from_attributes": True

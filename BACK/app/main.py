@@ -543,3 +543,20 @@ def concluir_questionario(
     return {
         "mensagem": "Questionário concluído e plano alimentar salvo com sucesso!"
     }
+
+@app.get("/plano-alimentar")
+def obter_plano_alimentar(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    plano = db.query(PlanoAlimentar).filter(
+        PlanoAlimentar.usuario_id == usuario.id
+    ).first()
+
+    if not plano:
+        raise HTTPException(
+            status_code=404,
+            detail="Plano alimentar não encontrado."
+        )
+
+    return plano

@@ -2385,9 +2385,49 @@ const MealRenderer = {
 const HomeModule = {
   chartDaysPeriod: 7,
 
-  init() {
+  async init() {
     let user = Auth.getAuthenticatedUser();
     if (!user) return;
+
+    try {
+        const dadosUsuario = await API.getMe();
+        const dadosQuestionario = await API.getQuestionario();
+        const dadosPlano = await API.getPlanoAlimentar();
+
+        const planoPerfil = { // Estamos criando um objeto chamado planoPerfil que organiza os dados do backend no formato que o método fillPlan() já espera.
+            dieta: {
+                titulo: dadosPlano.dieta_titulo,
+                descricao: dadosPlano.dieta_descricao
+            },
+            rotina: {
+                titulo: dadosPlano.rotina_titulo,
+                descricao: dadosPlano.rotina_descricao
+            }
+        };
+
+        const respostasQuestionario = {};
+
+        dadosQuestionario.respostas.forEach(item => {
+            respostasQuestionario[item.pergunta_codigo] = item.resposta;
+        });
+
+        user = {
+            ...user,
+            id: dadosUsuario.id,
+            name: dadosUsuario.nome,
+            email: dadosUsuario.email,
+            questionarioConcluido: dadosUsuario.questionario_concluido,
+            respostasQuestionario: respostasQuestionario,
+            planoPerfil: planoPerfil
+        };
+
+        Auth.createSession(user);
+
+    } catch (error) {
+        console.error('[NutriHub] Erro ao buscar usuário:', error);
+        UI.showToast('Não foi possível atualizar os dados do usuário.', 'error');
+        return;
+    }
 
     UI.injectWaterEffects();
     UI.injectHomeMealStyles();

@@ -39,5 +39,17 @@ const API = {
         }
 
         return data;
+    },
+
+    async getMe() {
+        return await this.request("/me");
+    },
+
+    async getQuestionario() {
+        return await this.request("/questionario");
+    },
+
+    async getPlanoAlimentar() {
+        return await this.request("/plano-alimentar");
     }
 };
