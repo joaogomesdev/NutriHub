@@ -34,6 +34,14 @@ class Usuario(Base):
         passive_deletes=True
     )
 
+    plano_alimentar = relationship(
+        "PlanoAlimentar",
+        back_populates="usuario",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
     def __init__(self, nome, email, senha):
         self.nome = nome
         self.email = email

@@ -1873,46 +1873,46 @@ const QuestionnaireModule = {
       document.querySelector('form');
   },
 
-  complete() {
+async complete(plano) {
     if (this.saving) return;
 
     const user = Auth.getAuthenticatedUser();
 
-    if (!user) {
-      window.location.replace(CONFIG.PATHS.LOGIN);
-      return;
+    if (!plano) { // impede que a requisição seja enviada caso o objeto não tenha sido gerado corretamente.
+        UI.showToast('Plano alimentar não encontrado.', 'error');
+        return;
     }
 
-    const form = this.getForm();
-    const respostas = form ? this.collectAnswers(form) : {};
-    const planoPerfil = this.readPlan();
-
-    const updated = StorageDB.updateUserData(user.id, (u) => {
-      u.questionarioConcluido = true;
-      u.respostasQuestionario = respostas;
-      u.planoPerfil = planoPerfil;
-      u.questionarioConcluidoEm = new Date().toISOString();
-
-      try {
-        u.planoAlimentar = PlanGenerator.generate(u);
-      } catch (error) {
-        console.error('[NutriHub] Não foi possível gerar o plano alimentar:', error);
-      }
-    });
-
-    if (!updated) {
-      UI.showToast('Não foi possível salvar suas respostas.', 'error');
-      return;
+    if (!user) {
+        window.location.replace(CONFIG.PATHS.LOGIN);
+        return;
     }
 
     this.saving = true;
 
-    UI.showToast('Questionário salvo com sucesso!', 'success');
+    try {
+        await API.request('/questionario/concluir', {
+            method: 'POST',
+            body: JSON.stringify(plano)
+        });
 
-    setTimeout(() => {
-      window.location.replace(CONFIG.PATHS.HOME);
-    }, 600);
-  },
+        UI.showToast('Questionário concluído com sucesso!', 'success');
+
+        setTimeout(() => {
+            window.location.replace(CONFIG.PATHS.HOME);
+        }, 600);
+
+    } catch (erro) {
+        console.error('[NutriHub] Erro ao concluir questionário:', erro);
+
+        this.saving = false;
+
+        UI.showToast(
+            erro.message || 'Não foi possível concluir o questionário.',
+            'error'
+        );
+    }
+},
 
   readPlan() {
     const text = (id) => {
