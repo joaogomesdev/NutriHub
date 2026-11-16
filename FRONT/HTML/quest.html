@@ -473,6 +473,7 @@
       const steps = document.querySelectorAll('.question-step');
       const totalSteps = steps.length;
       let currentStep = 1;
+      let planoGerado = null;
 
       const progressFill = document.getElementById('progress-fill');
       const stepCounter = document.getElementById('step-counter');
@@ -577,7 +578,7 @@ btnNext.addEventListener('click', async () => {
             btnText.textContent = 'Processando perfil...';
 
             setTimeout(() => {
-                calculatePersonalizedPlan();
+                planoGerado = calculatePersonalizedPlan();
 
                 quizForm.hidden = true;
                 questHeader.hidden = true;
@@ -646,6 +647,13 @@ btnNext.addEventListener('click', async () => {
         document.getElementById('diet-desc').textContent = dietDescription;
         document.getElementById('routine-name').textContent = routineTitle;
         document.getElementById('routine-desc').textContent = routineDescription;
+
+        return { // transformando os resultados em um objeto JavaScript.
+          dieta_titulo: dietTitle,
+          dieta_descricao: dietDescription,
+          rotina_titulo: routineTitle,
+          rotina_descricao: routineDescription
+        };
       }
 
       btnViewPlan.addEventListener('click', () => {
@@ -656,8 +664,8 @@ btnNext.addEventListener('click', async () => {
         stepPlanResult.classList.add('active');
       });
 
-      btnGoHome.addEventListener('click', () => {
-        QuestionnaireModule.complete();
+      btnGoHome.addEventListener('click', async () => {
+          await QuestionnaireModule.complete(planoGerado);
       });
     });
   </script>

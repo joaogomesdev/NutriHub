@@ -24,6 +24,7 @@ from BACK.app.models.usuario import Usuario
 from BACK.app.models.objetivo_nutricional import ObjetivoNutricional
 from BACK.app.models.questionario import Questionario
 from BACK.app.models.resposta_questionario import RespostaQuestionario
+from BACK.app.models.plano_alimentar import PlanoAlimentar
 
 
 # ==========================================
@@ -46,6 +47,9 @@ from BACK.app.schemas.questionario_schema import (
     RespostaQuestionarioSchema
 )
 
+from BACK.app.schemas.plano_alimentar_schema import (
+    PlanoAlimentarSchema
+)
 
 # ==========================================
 # 5. UTILITÁRIOS
@@ -463,8 +467,10 @@ def salvar_resposta(
     }
 
 
-@app.post("/questionario/concluir") # Chegar se o questionário foi concluído.
+
+@app.post("/questionario/concluir")
 def concluir_questionario(
+    dados: PlanoAlimentarSchema,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obter_usuario_autenticado)
 ):
@@ -486,7 +492,7 @@ def concluir_questionario(
             detail="Este questionário já foi concluído."
         )
 
-    # 3. Conta quantas perguntas foram respondidas.
+    # 3. Verifica se todas as perguntas foram respondidas.
     total_respostas = db.query(RespostaQuestionario).filter(
         RespostaQuestionario.questionario_id == questionario.id
     ).count()
@@ -497,12 +503,43 @@ def concluir_questionario(
             detail="Responda todas as 27 perguntas antes de concluir."
         )
 
-    # 4. Atualiza o status do questionário e do usuário.
+    # 4. Verifica se o usuário já possui um plano alimentar.
+    plano = db.query(PlanoAlimentar).filter(
+        PlanoAlimentar.usuario_id == usuario.id
+    ).first()
+
+    # 5. Cria ou atualiza o plano alimentar.
+    if plano:
+        plano.dieta_titulo = dados.dieta_titulo
+        plano.dieta_descricao = dados.dieta_descricao
+        plano.rotina_titulo = dados.rotina_titulo
+        plano.rotina_descricao = dados.rotina_descricao
+
+    else:
+        novo_plano = PlanoAlimentar(
+            usuario_id=usuario.id,
+            dieta_titulo=dados.dieta_titulo,
+            dieta_descricao=dados.dieta_descricao,
+            rotina_titulo=dados.rotina_titulo,
+            rotina_descricao=dados.rotina_descricao
+        )
+
+        db.add(novo_plano)
+
+    # 6. Atualiza o status do questionário e do usuário.
     questionario.status = "concluido"
     usuario.questionario_concluido = True
 
-    db.commit()
+    # 7. Salva todas as alterações.
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível salvar o plano alimentar."
+        )
 
     return {
-        "mensagem": "Questionário concluído com sucesso!"
+        "mensagem": "Questionário concluído e plano alimentar salvo com sucesso!"
     }
