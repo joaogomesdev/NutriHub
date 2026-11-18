@@ -4478,9 +4478,50 @@ const PlanoModule = {
 
   DAY_BY_INDEX: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
 
-  init() {
-    const user = Auth.getAuthenticatedUser();
+  async init() {
+    let user = Auth.getAuthenticatedUser();
     if (!user) return;
+
+    try {
+        const dadosUsuario = await API.getMe();
+        const dadosQuestionario = await API.getQuestionario();
+
+        const respostasQuestionario = {};
+
+        dadosQuestionario.respostas.forEach(item => {
+            respostasQuestionario[item.pergunta_codigo] = item.resposta;
+        });
+
+        const dadosPlano = await API.getPlanoAlimentar();
+
+        const planoPerfil = {
+            dieta: {
+                titulo: dadosPlano.dieta_titulo,
+                descricao: dadosPlano.dieta_descricao
+            },
+            rotina: {
+                titulo: dadosPlano.rotina_titulo,
+                descricao: dadosPlano.rotina_descricao
+            }
+        };
+
+        user = {
+            ...user,
+            id: dadosUsuario.id,
+            name: dadosUsuario.nome,
+            email: dadosUsuario.email,
+            questionarioConcluido: dadosUsuario.questionario_concluido,
+            respostasQuestionario: respostasQuestionario,
+            planoPerfil: planoPerfil
+        };
+
+        Auth.createSession(user);
+
+    } catch (error) {
+        console.error('[NutriHub] Erro ao buscar dados do plano:', error);
+        UI.showToast('Não foi possível carregar os dados do plano.', 'error');
+        return;
+    }
 
     UI.injectPlanStyles();
 
