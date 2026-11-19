@@ -25,6 +25,8 @@ from BACK.app.models.objetivo_nutricional import ObjetivoNutricional
 from BACK.app.models.questionario import Questionario
 from BACK.app.models.resposta_questionario import RespostaQuestionario
 from BACK.app.models.plano_alimentar import PlanoAlimentar
+from BACK.app.models.refeicao import Refeicao
+from BACK.app.models.alimento_refeicao import AlimentoRefeicao
 
 
 # ==========================================
@@ -49,6 +51,11 @@ from BACK.app.schemas.questionario_schema import (
 
 from BACK.app.schemas.plano_alimentar_schema import (
     PlanoAlimentarSchema
+)
+
+from BACK.app.schemas.refeicao_schema import (
+    RefeicaoSchema,
+    RefeicaoResponse
 )
 
 # ==========================================
@@ -560,3 +567,96 @@ def obter_plano_alimentar(
         )
 
     return plano
+
+@app.post("/refeicoes", response_model=RefeicaoResponse)
+def criar_refeicao(
+    dados: RefeicaoSchema,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    # 1. Cria a refeição.
+    nova_refeicao = Refeicao(
+        usuario_id=usuario.id,
+        data=dados.data,
+        horario=dados.horario,
+        tipo=dados.tipo,
+        titulo=dados.titulo,
+        descricao=dados.descricao,
+        local=dados.local,
+        calorias=sum(alimento.calorias for alimento in dados.alimentos),
+        quantidade_agua=dados.quantidade_agua
+    )
+
+    # 2. Adiciona os alimentos à refeição.
+    for alimento in dados.alimentos:
+        novo_alimento = AlimentoRefeicao(
+            nome=alimento.nome,
+            porcao=alimento.porcao,
+            calorias=alimento.calorias
+        )
+
+        nova_refeicao.alimentos.append(novo_alimento)
+
+    # 3. Associa a refeição ao usuário.
+    usuario.refeicoes.append(nova_refeicao)
+
+    # 4. Salva no banco.
+    try:
+        db.add(nova_refeicao)
+        db.commit()
+        db.refresh(nova_refeicao)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível registrar a refeição."
+        )
+
+    return nova_refeicao
+
+@app.get("/refeicoes", response_model=list[RefeicaoResponse])
+def listar_refeicoes(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    refeicoes = db.query(Refeicao).filter(
+        Refeicao.usuario_id == usuario.id
+    ).order_by(
+        Refeicao.data.desc(),
+        Refeicao.horario.desc()
+    ).all()
+
+    return refeicoes
+
+@app.delete("/refeicoes/{refeicao_id}")
+def excluir_refeicao(
+    refeicao_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    refeicao = db.query(Refeicao).filter(
+        Refeicao.id == refeicao_id,
+        Refeicao.usuario_id == usuario.id
+    ).first()
+
+    if not refeicao:
+        raise HTTPException(
+            status_code=404,
+            detail="Refeição não encontrada."
+        )
+
+    try:
+        db.delete(refeicao)
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível excluir a refeição."
+        )
+
+    return {
+        "mensagem": "Refeição excluída com sucesso!"
+    }

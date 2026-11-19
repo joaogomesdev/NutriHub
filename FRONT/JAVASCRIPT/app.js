@@ -1389,7 +1389,7 @@ const Utils = {
   }
 };
 
-const StorageDB = {
+const StorageDB = { // Objeto Database.
   getUsers() {
     try {
       const data = sessionStorage.getItem(CONFIG.KEYS.USERS);
@@ -1434,14 +1434,52 @@ const StorageDB = {
   },
 
   updateUserData(userId, updateFn) {
-    const users = this.getUsers();
-    const index = users.findIndex(u => u.id === userId);
+      const users = this.getUsers();
 
-    if (index === -1) return null;
+      const index = users.findIndex(
+          u => String(u.id) === String(userId)
+      );
 
-    updateFn(users[index]);
+      // Recupera o usuário da sessão ativa.
+      let sessionUser = null;
 
-    return this.saveUsers(users) ? users[index] : null;
+      try {
+          const savedUser = sessionStorage.getItem("nutrihub_user");
+          sessionUser = savedUser ? JSON.parse(savedUser) : null;
+      } catch (error) {
+          sessionUser = null;
+      }
+
+      // Verifica se a sessão pertence ao usuário atualizado.
+      const sessionMatches = sessionUser &&
+          String(sessionUser.id) === String(userId);
+
+      // Prioriza o usuário da sessão, se for o mesmo.
+      const user = sessionMatches
+          ? sessionUser
+          : (index !== -1 ? users[index] : null);
+
+      if (!user) return null;
+
+      // Aplica as alterações.
+      updateFn(user);
+
+      // Atualiza a lista de usuários, caso exista.
+      if (index !== -1) {
+          users[index] = user;
+
+          if (!this.saveUsers(users)) return null;
+      }
+
+      // Sincroniza o usuário autenticado.
+      if (sessionMatches) {
+          sessionStorage.setItem(
+              "nutrihub_user",
+              JSON.stringify(user)
+          );
+      }
+
+      return user;
   }
 };
 
@@ -1774,6 +1812,17 @@ async submit() {
         // 4. Cria a sessão no navegador.
         Auth.createSession(user);
 
+        // 5. Carrega as refeições do usuário.
+        try {
+            await MealService.getAll(user.id);
+        } catch (error) {
+            console.error(
+                '[NutriHub] Erro ao carregar refeições no login:',
+                error
+            );
+        }
+
+        // 6. Exibe a mensagem de sucesso.
         UI.showToast(
             'Login efetuado com sucesso!',
             'success'
@@ -2150,7 +2199,7 @@ const MealService = {
     return 'outro';
   },
 
-  add(userId, data) {
+  async add(userId, data) {
     const type = this.normalizeType(data.type);
     const waterAmount = Number(data.waterAmount) > 0
       ? Number(data.waterAmount)
@@ -2190,24 +2239,99 @@ const MealService = {
       createdAt: new Date().toISOString()
     };
 
-    const updated = StorageDB.updateUserData(userId, (u) => {
-      if (!Array.isArray(u.refeicoes)) u.refeicoes = [];
+    try {
+      const resposta = await API.criarRefeicao({
+        data: meal.date,
+        horario: meal.time,
+        tipo: meal.type,
+        titulo: meal.title,
+        descricao: meal.description,
+        local: meal.local,
+        calorias: meal.calories,
+        quantidade_agua: meal.waterAmount,
+        alimentos: meal.foods.map(food => ({
+          nome: food.name,
+          porcao: food.portion,
+          calorias: food.calories || 0
+        }))
+      });
 
-      u.refeicoes.push(meal);
+      const refeicaoSalva = {
+        id: resposta.id,
+        date: resposta.data,
+        time: resposta.horario,
+        type: this.normalizeType(resposta.tipo),
+        title: resposta.titulo,
+        description: resposta.descricao || '',
+        local: resposta.local || '',
+        foods: (resposta.alimentos || []).map(food => ({
+          id: food.id,
+          name: food.nome,
+          portion: food.porcao || '',
+          calories: Number(food.calorias || 0)
+        })),
+        calories: Number(resposta.calorias || 0),
+        waterAmount: Number(resposta.quantidade_agua || 0),
+        createdAt: new Date().toISOString()
+      };
 
-      if (waterAmount > 0) GoalSync.ensureHydrationGoal(u);
+      StorageDB.updateUserData(userId, (u) => {
+        if (!Array.isArray(u.refeicoes)) u.refeicoes = [];
 
-      GoalSync.compute(u);
-    });
+        u.refeicoes.push(refeicaoSalva);
 
-    return updated ? meal : null;
+        if (waterAmount > 0) GoalSync.ensureHydrationGoal(u);
+
+        GoalSync.compute(u);
+      });
+
+      return refeicaoSalva;
+
+    } catch (error) {
+      console.error('[NutriHub] Erro ao salvar refeição:', error);
+      return null;
+    }
   },
 
-  remove(userId, mealId) {
-    return StorageDB.updateUserData(userId, (u) => {
-      u.refeicoes = (u.refeicoes || []).filter(m => m.id !== mealId);
-      GoalSync.compute(u);
-    });
+  async remove(userId, mealId) {
+    try {
+      await API.excluirRefeicao(mealId);
+
+      StorageDB.updateUserData(userId, (u) => {
+        u.refeicoes = (u.refeicoes || []).filter(
+          m => String(m.id) !== String(mealId)
+        );
+
+        GoalSync.compute(u);
+      });
+
+      return true;
+
+    } catch (error) {
+      console.error('[NutriHub] Erro ao excluir refeição:', error);
+      return false;
+    }
+  },
+
+  mapFromAPI(refeicao) {
+    return {
+      id: refeicao.id,
+      date: refeicao.data,
+      time: refeicao.horario,
+      type: this.normalizeType(refeicao.tipo),
+      title: refeicao.titulo,
+      description: refeicao.descricao || '',
+      local: refeicao.local || '',
+      foods: (refeicao.alimentos || []).map(food => ({
+        id: food.id,
+        name: food.nome,
+        portion: food.porcao || '',
+        calories: Number(food.calorias || 0)
+      })),
+      calories: Number(refeicao.calorias || 0),
+      waterAmount: Number(refeicao.quantidade_agua || 0),
+      createdAt: `${refeicao.data}T${refeicao.horario}`
+    };
   },
 
   filter(meals, options = {}) {
@@ -2251,6 +2375,32 @@ const MealService = {
       return true;
     });
   },
+
+  async getAll(userId) {
+  try {
+    const resposta = await API.getRefeicoes();
+
+    const refeicoes = resposta.map(refeicao =>
+      this.mapFromAPI(refeicao)
+    );
+
+    StorageDB.updateUserData(userId, (u) => {
+      u.refeicoes = refeicoes;
+
+      if (refeicoes.some(r => r.waterAmount > 0)) {
+        GoalSync.ensureHydrationGoal(u);
+      }
+
+      GoalSync.compute(u);
+    });
+
+    return refeicoes;
+
+  } catch (error) {
+    console.error('[NutriHub] Erro ao buscar refeições:', error);
+    throw error;
+  }
+},
 
   groupByDate(meals) {
     const map = meals.reduce((acc, meal) => {
@@ -2721,7 +2871,7 @@ const HomeModule = {
 
     if (!form) return;
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const currentUser = Auth.getAuthenticatedUser();
@@ -2746,7 +2896,7 @@ const HomeModule = {
         return;
       }
 
-      const meal = MealService.add(currentUser.id, {
+      const meal = await MealService.add(currentUser.id, {
         date: Utils.todayISO(),
         time: new Date().toTimeString().slice(0, 5),
         type: 'hidratação',
@@ -2808,7 +2958,7 @@ const HistoricoModule = {
     calendarYear: new Date().getFullYear()
   },
 
-  init() {
+  async init() {
     const user = Auth.getAuthenticatedUser();
     if (!user) return;
 
@@ -2817,6 +2967,13 @@ const HistoricoModule = {
     this.cacheEls();
     this.bindEvents();
     this.setView('list');
+
+    try {
+      await MealService.getAll(user.id);
+    } catch (error) {
+      UI.showToast('Não foi possível carregar as refeições.', 'error');
+    }
+
     this.refresh();
   },
 
@@ -2886,7 +3043,7 @@ const HistoricoModule = {
     if (calNext) calNext.addEventListener('click', () => this.shiftMonth(1));
 
     if (list) {
-      list.addEventListener('click', (e) => {
+      list.addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-delete-meal], .btn-delete-meal');
         if (!btn) return;
 
@@ -2898,7 +3055,12 @@ const HistoricoModule = {
         const current = Auth.getAuthenticatedUser();
         if (!current) return;
 
-        MealService.remove(current.id, mealId);
+        const sucesso = await MealService.remove(current.id, mealId);
+
+        if (!sucesso) {
+          UI.showToast('Não foi possível excluir o registro.', 'error');
+          return;
+        }
 
         UI.showToast('Registro excluído com sucesso.', 'success');
         this.refresh();
@@ -3427,7 +3589,7 @@ const RegistroModule = {
     }
   },
 
-  save(ev) {
+  async save(ev) {
     ev.preventDefault();
 
     if (this.saving) return;
@@ -3476,7 +3638,7 @@ const RegistroModule = {
       return;
     }
 
-    const meal = MealService.add(user.id, {
+    const meal = await MealService.add(user.id, {
       date,
       time,
       type,

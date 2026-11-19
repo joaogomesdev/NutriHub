@@ -51,5 +51,22 @@ const API = {
 
     async getPlanoAlimentar() {
         return await this.request("/plano-alimentar");
+    },
+
+    async getRefeicoes() {
+        return await this.request("/refeicoes");
+    },
+
+    async criarRefeicao(dados) {
+        return await this.request("/refeicoes", {
+            method: "POST",
+            body: JSON.stringify(dados)
+        });
+    },
+
+    async excluirRefeicao(id) {
+        return await this.request(`/refeicoes/${id}`, {
+            method: "DELETE"
+        });
     }
 };

@@ -42,6 +42,13 @@ class Usuario(Base):
         passive_deletes=True
     )
 
+    refeicoes = relationship(
+        "Refeicao",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
     def __init__(self, nome, email, senha):
         self.nome = nome
         self.email = email
