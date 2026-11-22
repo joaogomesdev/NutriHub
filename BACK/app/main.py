@@ -27,6 +27,7 @@ from BACK.app.models.resposta_questionario import RespostaQuestionario
 from BACK.app.models.plano_alimentar import PlanoAlimentar
 from BACK.app.models.refeicao import Refeicao
 from BACK.app.models.alimento_refeicao import AlimentoRefeicao
+from BACK.app.models.meta import Meta
 
 
 # ==========================================
@@ -56,6 +57,12 @@ from BACK.app.schemas.plano_alimentar_schema import (
 from BACK.app.schemas.refeicao_schema import (
     RefeicaoSchema,
     RefeicaoResponse
+)
+
+from BACK.app.schemas.meta_schema import (
+    MetaSchema,
+    MetaResponse,
+    MetaConclusao
 )
 
 # ==========================================
@@ -659,4 +666,92 @@ def excluir_refeicao(
 
     return {
         "mensagem": "Refeição excluída com sucesso!"
+    }
+
+# EndPoint das Metas 
+
+@app.post("/metas", response_model=MetaResponse)
+def criar_meta(
+    dados: MetaSchema,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    nova_meta = Meta(
+        usuario_id=usuario.id,
+        titulo=dados.titulo,
+        categoria=dados.categoria,
+        alvo=dados.alvo,
+        atual=0,
+        unidade=dados.unidade,
+        frequencia=dados.frequencia,
+        concluida=False
+    )
+
+    db.add(nova_meta)
+    db.commit()
+    db.refresh(nova_meta)
+
+    return nova_meta
+
+@app.get("/metas", response_model=list[MetaResponse])
+def listar_metas(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    metas = db.query(Meta).filter(
+        Meta.usuario_id == usuario.id
+    ).order_by(
+        Meta.criada_em.desc()
+    ).all()
+
+    return metas
+
+@app.patch("/metas/{meta_id}", response_model=MetaResponse)
+def atualizar_conclusao_meta(
+    meta_id: int,
+    dados: MetaConclusao,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    meta = db.query(Meta).filter(
+        Meta.id == meta_id,
+        Meta.usuario_id == usuario.id
+    ).first()
+
+    if not meta:
+        raise HTTPException(
+            status_code=404,
+            detail="Meta não encontrada."
+        )
+
+    meta.concluida = dados.concluida
+    meta.atual = meta.alvo if dados.concluida else 0
+
+    db.commit()
+    db.refresh(meta)
+
+    return meta
+
+@app.delete("/metas/{meta_id}")
+def excluir_meta(
+    meta_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obter_usuario_autenticado)
+):
+    meta = db.query(Meta).filter(
+        Meta.id == meta_id,
+        Meta.usuario_id == usuario.id
+    ).first()
+
+    if not meta:
+        raise HTTPException(
+            status_code=404,
+            detail="Meta não encontrada."
+        )
+
+    db.delete(meta)
+    db.commit()
+
+    return {
+        "mensagem": "Meta excluída com sucesso!"
     }

@@ -68,5 +68,29 @@ const API = {
         return await this.request(`/refeicoes/${id}`, {
             method: "DELETE"
         });
+    },
+
+    async getMetas() {
+        return await this.request("/metas");
+    },
+
+    async criarMeta(dados) {
+        return await this.request("/metas", {
+            method: "POST",
+            body: JSON.stringify(dados)
+        });
+    },
+
+    async atualizarConclusaoMeta(id, concluida) {
+        return await this.request(`/metas/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ concluida })
+        });
+    },
+
+    async excluirMeta(id) {
+        return await this.request(`/metas/${id}`, {
+            method: "DELETE"
+        });
     }
 };

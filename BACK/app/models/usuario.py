@@ -49,6 +49,12 @@ class Usuario(Base):
         passive_deletes=True
     )
 
+    metas = relationship(
+        "Meta",
+        back_populates="usuario",
+        cascade="all, delete-orphan"
+    )
+
     def __init__(self, nome, email, senha):
         self.nome = nome
         self.email = email

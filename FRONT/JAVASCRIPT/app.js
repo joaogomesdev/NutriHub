@@ -1331,13 +1331,11 @@ const Utils = {
 
     const category = this.normalize(meta.category);
     const title = this.normalize(meta.title);
-    const unit = this.normalize(meta.unit);
 
     return (
       category.includes('hidrat') ||
       category.includes('agua') ||
-      title.includes('agua') ||
-      ['ml', 'l', 'lt', 'litro', 'litros'].includes(unit)
+      title.includes('agua')
     );
   },
 
@@ -2582,7 +2580,12 @@ const HomeModule = {
     UI.injectWaterEffects();
     UI.injectHomeMealStyles();
 
-    user = GoalSync.ensureFresh(user);
+    const updatedUser = StorageDB.updateUserData(user.id, (u) => {
+        GoalSync.ensureHydrationGoal(u);
+        GoalSync.compute(u);
+    });
+
+    user = updatedUser || user;
 
     const welcomeTitle = document.querySelector('.page-title');
 
@@ -5063,17 +5066,51 @@ const MetasModule = {
     unit: ['meta-unit', 'goal-unit']
   },
 
-  init() {
+  mapFromAPI(meta) {
+      return {
+          id: meta.id,
+          title: meta.titulo,
+          category: meta.categoria,
+          target: Number(meta.alvo || 0),
+          current: Number(meta.atual || 0),
+          unit: meta.unidade,
+          frequencia: meta.frequencia,
+          concluida: meta.concluida,
+          createdAt: meta.criada_em
+      };
+  },
+
+async init() {
     let user = Auth.getAuthenticatedUser();
     if (!user) return;
 
-    user = GoalSync.ensureFresh(user);
-
-    this.renderMetas(user);
     this.setupModal();
     this.setupFilters();
     this.setupGridEvents();
-  },
+
+    try {
+        const resposta = await API.getMetas();
+
+        const metas = resposta.map(meta =>
+            this.mapFromAPI(meta)
+        );
+
+        const updated = StorageDB.updateUserData(user.id, (u) => {
+            u.metas = metas;
+        });
+
+        user = updated || {
+            ...user,
+            metas
+        };
+
+        this.renderMetas(user);
+
+    } catch (error) {
+        console.error('[NutriHub] Erro ao carregar metas:', error);
+        UI.showToast('Não foi possível carregar suas metas.', 'error');
+    }
+},
 
   getFilteredMetas(metas) {
     const f = Utils.normalize(this.currentFilter);
@@ -5190,45 +5227,89 @@ const MetasModule = {
     });
   },
 
-  deleteGoal(goalId) {
+async deleteGoal(goalId) {
     const user = Auth.getAuthenticatedUser();
     if (!user) return;
 
     if (!window.confirm('Deseja excluir esta meta?')) return;
 
-    StorageDB.updateUserData(user.id, (u) => {
-      u.metas = (u.metas || []).filter(goal => goal.id !== goalId);
-    });
+    try {
+        // Solicita a exclusão ao backend.
+        await API.excluirMeta(goalId);
 
-    UI.showToast('Meta excluída.', 'success');
+        // Atualiza os dados armazenados no frontend.
+        const updated = StorageDB.updateUserData(user.id, (u) => {
+            u.metas = (u.metas || []).filter(
+                goal => String(goal.id) !== String(goalId)
+            );
+        });
 
-    const fresh = Auth.getAuthenticatedUser();
-    if (fresh) this.renderMetas(fresh);
-  },
+        UI.showToast('Meta excluída.', 'success');
 
-  toggleGoal(goalId) {
+        const fresh = updated || Auth.getAuthenticatedUser();
+
+        if (fresh) this.renderMetas(fresh);
+
+    } catch (error) {
+        console.error('[NutriHub] Erro ao excluir meta:', error);
+        UI.showToast('Não foi possível excluir a meta.', 'error');
+    }
+},
+
+async toggleGoal(goalId) {
     const user = Auth.getAuthenticatedUser();
     if (!user) return;
 
-    StorageDB.updateUserData(user.id, (u) => {
-      const meta = (u.metas || []).find(g => g.id === goalId);
-      if (!meta) return;
+    const metaAtual = (user.metas || []).find(
+        m => String(m.id) === String(goalId)
+    );
 
-      meta.concluida = !meta.concluida;
-      meta.current = meta.concluida ? Number(meta.target || 0) : 0;
-    });
+    if (!metaAtual) return;
 
-    const fresh = Auth.getAuthenticatedUser();
-    if (fresh) this.renderMetas(fresh);
-  },
+    const novaConclusao = !metaAtual.concluida;
 
-  createGoal() {
+    try {
+        // Atualiza a meta no banco de dados.
+        const resposta = await API.atualizarConclusaoMeta(
+            goalId,
+            novaConclusao
+        );
+
+        const metaAtualizada = this.mapFromAPI(resposta);
+
+        // Sincroniza o armazenamento do frontend.
+        const updated = StorageDB.updateUserData(user.id, (u) => {
+            u.metas = (u.metas || []).map(meta =>
+                String(meta.id) === String(goalId)
+                    ? metaAtualizada
+                    : meta
+            );
+        });
+
+        UI.showToast(
+            novaConclusao
+                ? 'Meta concluída com sucesso!'
+                : 'Meta reaberta.',
+            'success'
+        );
+
+        const fresh = updated || Auth.getAuthenticatedUser();
+
+        if (fresh) this.renderMetas(fresh);
+
+    } catch (error) {
+        console.error('[NutriHub] Erro ao atualizar meta:', error);
+        UI.showToast('Não foi possível atualizar a meta.', 'error');
+    }
+},
+
+async createGoal() {
     const user = Auth.getAuthenticatedUser();
     if (!user) return false;
 
     const read = (ids) => {
-      const el = Utils.pick(ids);
-      return el ? String(el.value || '').trim() : '';
+        const el = Utils.pick(ids);
+        return el ? String(el.value || '').trim() : '';
     };
 
     const title = read(this.IDS.title);
@@ -5237,39 +5318,43 @@ const MetasModule = {
     const unit = read(this.IDS.unit);
 
     if (!title || !category || !Number.isFinite(target) || target <= 0 || !unit) {
-      UI.showToast('Por favor, preencha todos os campos da meta.', 'error');
-      return false;
+        UI.showToast('Por favor, preencha todos os campos da meta.', 'error');
+        return false;
     }
 
-    const newMeta = {
-      id: 'goal_' + Date.now().toString(36) + '_' +
-        Math.random().toString(36).substring(2, 6),
-      title,
-      category,
-      target,
-      current: 0,
-      unit,
-      frequencia: 'diaria',
-      concluida: false,
-      createdAt: new Date().toISOString()
-    };
+    try {
+        const resposta = await API.criarMeta({
+            titulo: title,
+            categoria: category,
+            alvo: target,
+            unidade: unit,
+            frequencia: 'diaria'
+        });
 
-    const updated = StorageDB.updateUserData(user.id, (u) => {
-      if (!Array.isArray(u.metas)) u.metas = [];
-      u.metas.push(newMeta);
-      GoalSync.compute(u);
-    });
+        const novaMeta = this.mapFromAPI(resposta);
 
-    if (!updated) {
-      UI.showToast('Não foi possível salvar a meta.', 'error');
-      return false;
+        const updated = StorageDB.updateUserData(user.id, (u) => {
+            if (!Array.isArray(u.metas)) u.metas = [];
+            u.metas.unshift(novaMeta);
+        });
+
+        UI.showToast('Meta criada com sucesso!', 'success');
+
+        const fresh = updated || {
+            ...user,
+            metas: [novaMeta, ...(user.metas || [])]
+        };
+
+        this.renderMetas(fresh);
+
+        return true;
+
+    } catch (error) {
+        console.error('[NutriHub] Erro ao criar meta:', error);
+        UI.showToast('Não foi possível criar a meta.', 'error');
+        return false;
     }
-
-    UI.showToast('Meta criada com sucesso!', 'success');
-    this.renderMetas(updated);
-
-    return true;
-  },
+},
 
   setupModal() {
     const modal = document.getElementById('meta-modal');
@@ -5314,10 +5399,12 @@ const MetasModule = {
     }
 
     if (form) {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
+      form.addEventListener('submit', async (e) => {
+          e.preventDefault();
 
-        if (this.createGoal()) close();
+          const created = await this.createGoal();
+
+          if (created) close();
       });
     }
   },
