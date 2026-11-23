@@ -2636,10 +2636,7 @@ const HomeModule = {
   },
 
   getHydrationTargetMl(user) {
-    const goal = this.getHydrationGoal(user);
-    if (!goal) return 0;
-
-    return Number(goal.target || 0) * Utils.unitToMl(goal.unit);
+    return CONFIG.WATER_DEFAULT_GOAL_ML;
   },
 
   renderMetrics(user) {
@@ -5097,6 +5094,9 @@ async init() {
 
         const updated = StorageDB.updateUserData(user.id, (u) => {
             u.metas = metas;
+
+            // Recalcula automaticamente o progresso da hidratação.
+            GoalSync.compute(u);
         });
 
         user = updated || {
