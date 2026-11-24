@@ -54,6 +54,14 @@ class Usuario(Base):
         cascade="all, delete-orphan"
     )
 
+    perfil = relationship(
+        "Perfil",
+        back_populates="usuario",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
     def __init__(self, nome, email, senha):
         self.nome = nome
         self.email = email

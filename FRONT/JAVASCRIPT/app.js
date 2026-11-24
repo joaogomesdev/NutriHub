@@ -5833,12 +5833,28 @@ const ProgressoModule = {
 };
 
 const PerfilModule = {
-  init() {
+  async init() {
     const user = Auth.getAuthenticatedUser();
     if (!user) return;
 
-    this.loadUserData(user);
-    this.setupForm(user);
+    try {
+      const perfil = await API.getPerfil();
+
+      user.perfil = {
+        dataNascimento: perfil.data_nascimento || '',
+        genero: perfil.genero || '',
+        nivelAtividade: perfil.nivel_atividade || '',
+        pesoAtual: perfil.peso_atual ?? '',
+        metaPeso: perfil.meta_peso ?? '',
+        altura: perfil.altura ?? ''
+      };
+
+      this.loadUserData(user);
+      this.setupForm(user);
+
+    } catch (error) {
+      UI.showToast(error.message || 'Erro ao carregar perfil.', 'error');
+    }
   },
 
   loadUserData(user) {
@@ -5867,7 +5883,7 @@ const PerfilModule = {
 
     let saving = false;
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       if (saving) return;
@@ -5888,6 +5904,7 @@ const PerfilModule = {
 
       const height = parseFloat(read('perfil-height'));
 
+      // Validação dos campos obrigatórios
       if (
         !name || !birth || !gender || !activity ||
         Number.isNaN(weight) || Number.isNaN(height)
@@ -5896,6 +5913,7 @@ const PerfilModule = {
         return;
       }
 
+      // Validação da data de nascimento
       const birthDate = Utils.parseLocalDate(birth);
       const today = new Date();
 
@@ -5908,6 +5926,7 @@ const PerfilModule = {
         return;
       }
 
+      // Validação do peso
       if (weight < 20 || weight > 500) {
         UI.showToast('Informe um peso atual válido.', 'error');
         return;
@@ -5921,40 +5940,60 @@ const PerfilModule = {
         return;
       }
 
+      // Validação da altura
       if (height < 50 || height > 260) {
         UI.showToast('Informe uma altura válida em centímetros.', 'error');
         return;
       }
 
-      const updated = StorageDB.updateUserData(user.id, (u) => {
-        u.name = name;
-
-        u.perfil = {
-          dataNascimento: birth,
-          genero: gender,
-          nivelAtividade: activity,
-          pesoAtual: weight,
-          metaPeso: targetWeight,
-          altura: height,
-          atualizadoEm: new Date().toISOString()
-        };
-      });
-
-      if (!updated) return;
-
       saving = true;
 
-      document.querySelectorAll('.user-avatar').forEach(el => {
-        el.textContent = Utils.getInitials(updated.name);
-      });
+      try {
+        // Envia os dados para o backend
+        const perfilAtualizado = await API.atualizarPerfil({
+          data_nascimento: birth,
+          genero: gender,
+          nivel_atividade: activity,
+          peso_atual: weight,
+          meta_peso: targetWeight,
+          altura: height
+        });
 
-      UI.showToast('Perfil salvo com sucesso!', 'success');
+        // Atualiza os dados locais do usuário
+        const updated = StorageDB.updateUserData(user.id, (u) => {
+          u.name = name;
 
-      setTimeout(() => {
-        window.location.replace(CONFIG.PATHS.HOME);
-      }, 800);
+          u.perfil = {
+            dataNascimento: perfilAtualizado.data_nascimento || birth,
+            genero: perfilAtualizado.genero || gender,
+            nivelAtividade: perfilAtualizado.nivel_atividade || activity,
+            pesoAtual: perfilAtualizado.peso_atual ?? weight,
+            metaPeso: perfilAtualizado.meta_peso ?? targetWeight,
+            altura: perfilAtualizado.altura ?? height,
+            atualizadoEm: perfilAtualizado.atualizado_em
+          };
+        });
+
+        if (!updated) return;
+
+        document.querySelectorAll('.user-avatar').forEach(el => {
+          el.textContent = Utils.getInitials(updated.name);
+        });
+
+        UI.showToast('Perfil salvo com sucesso!', 'success');
+
+        setTimeout(() => {
+          window.location.replace(CONFIG.PATHS.HOME);
+        }, 800);
+
+      } catch (error) {
+        UI.showToast(error.message || 'Erro ao salvar perfil.', 'error');
+
+      } finally {
+        saving = false;
+      }
     });
-  }
+  },
 };
 
 const ConfiguracoesModule = {

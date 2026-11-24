@@ -28,7 +28,7 @@ from BACK.app.models.plano_alimentar import PlanoAlimentar
 from BACK.app.models.refeicao import Refeicao
 from BACK.app.models.alimento_refeicao import AlimentoRefeicao
 from BACK.app.models.meta import Meta
-
+from BACK.app.models.perfil import Perfil
 
 # ==========================================
 # 4. SCHEMAS
@@ -66,12 +66,18 @@ from BACK.app.schemas.meta_schema import (
     MetaConclusao
 )
 
+from BACK.app.schemas.perfil_schema import (
+    PerfilSchema,
+    PerfilResponse
+)
+
 # ==========================================
 # 5. UTILITÁRIOS
 # ==========================================
 
 from BACK.app.utils.senha import criar_hash, verificar_senha
 from BACK.app.utils.auth import criar_token, validar_token
+from datetime import datetime
 
 # ==========================================
 
@@ -783,3 +789,47 @@ def excluir_meta(
     return {
         "mensagem": "Meta excluída com sucesso!"
     }
+
+@app.get("/perfil", response_model=PerfilResponse)
+def obter_perfil(
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(obter_usuario_autenticado)
+):
+    perfil = db.query(Perfil).filter(
+        Perfil.usuario_id == usuario_atual.id
+    ).first()
+
+    # Se ainda não existir um perfil, cria um vazio
+    if not perfil:
+        perfil = Perfil(usuario_id=usuario_atual.id)
+        db.add(perfil)
+        db.commit()
+        db.refresh(perfil)
+
+    return perfil
+
+@app.put("/perfil", response_model=PerfilResponse)
+def atualizar_perfil(
+    dados: PerfilSchema,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(obter_usuario_autenticado)
+):
+    perfil = db.query(Perfil).filter(
+        Perfil.usuario_id == usuario_atual.id
+    ).first()
+
+    # Cria o perfil caso ainda não exista
+    if not perfil:
+        perfil = Perfil(usuario_id=usuario_atual.id)
+        db.add(perfil)
+
+    # Atualiza os campos recebidos
+    for campo, valor in dados.model_dump(exclude_unset=True).items():
+        setattr(perfil, campo, valor)
+
+    perfil.atualizado_em = datetime.now()
+
+    db.commit()
+    db.refresh(perfil)
+
+    return perfil

@@ -45,6 +45,17 @@ const API = {
         return await this.request("/me");
     },
 
+    async getPerfil() {
+        return await this.request("/perfil");
+    },
+
+    async atualizarPerfil(dados) {
+        return await this.request("/perfil", {
+            method: "PUT",
+            body: JSON.stringify(dados)
+        });
+    },
+
     async alterarSenha(dados) {
         return await this.request("/usuario/senha", {
             method: "PUT",
