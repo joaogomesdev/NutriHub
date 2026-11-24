@@ -5975,18 +5975,27 @@ const ConfiguracoesModule = {
   },
 
   setupForm(user) {
-    const form = document.getElementById('settings-form');
+    const form = document.getElementById('config-form');
     if (!form) return;
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const nameInput = document.getElementById('user-name');
       const emailInput = document.getElementById('user-email');
 
+      const currentPasswordInput = document.getElementById('current-password');
+      const newPasswordInput = document.getElementById('new-password');
+      const confirmPasswordInput = document.getElementById('confirm-password');
+
       const newName = nameInput ? nameInput.value.trim() : user.name;
       const newEmail = emailInput ? emailInput.value.trim() : user.email;
 
+      const currentPassword = currentPasswordInput.value;
+      const newPassword = newPasswordInput.value;
+      const confirmPassword = confirmPasswordInput.value;
+
+      // Validação dos dados do usuário
       if (!newName || !newEmail) {
         UI.showToast('Nome e e-mail são obrigatórios.', 'error');
         return;
@@ -6004,6 +6013,38 @@ const ConfiguracoesModule = {
         return;
       }
 
+      // Verifica se o usuário deseja alterar a senha
+      const desejaAlterarSenha =
+        currentPassword || newPassword || confirmPassword;
+
+      if (desejaAlterarSenha) {
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          UI.showToast('Preencha todos os campos de senha.', 'error');
+          return;
+        }
+
+        if (newPassword !== confirmPassword) {
+          UI.showToast('As novas senhas não coincidem.', 'error');
+          return;
+        }
+
+        try {
+          await API.alterarSenha({
+            senha_atual: currentPassword,
+            nova_senha: newPassword
+          });
+
+          currentPasswordInput.value = '';
+          newPasswordInput.value = '';
+          confirmPasswordInput.value = '';
+
+        } catch (error) {
+          UI.showToast(error.message, 'error');
+          return;
+        }
+      }
+
+      // Atualiza os dados locais do usuário
       const updated = StorageDB.updateUserData(user.id, (u) => {
         u.name = newName;
         u.email = newEmail;
@@ -6014,7 +6055,7 @@ const ConfiguracoesModule = {
         UI.showToast('Configurações salvas com sucesso!', 'success');
       }
     });
-  }
+  },
 };
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -37,7 +37,8 @@ from BACK.app.models.meta import Meta
 from BACK.app.schemas.usuario_schema import (
     UsuarioLogin,
     UsuarioSchema,
-    UsuarioResponse
+    UsuarioResponse,
+    AlterarSenhaSchema
 )
 
 from BACK.app.schemas.objetivo_schema import (
@@ -144,6 +145,33 @@ def obter_usuario_por_id(
         )
 
     return usuario_atual
+
+@app.put("/usuario/senha")
+def alterar_senha(
+    dados: AlterarSenhaSchema,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(obter_usuario_autenticado)
+):
+    # Confere se a senha atual está correta
+    if not verificar_senha(dados.senha_atual, usuario_atual.senha):
+        raise HTTPException(
+            status_code=400,
+            detail="A senha atual está incorreta."
+        )
+
+    # Impede que o usuário reutilize a mesma senha
+    if verificar_senha(dados.nova_senha, usuario_atual.senha):
+        raise HTTPException(
+            status_code=400,
+            detail="A nova senha deve ser diferente da atual."
+        )
+
+    # Salva a nova senha protegida por hash
+    usuario_atual.senha = criar_hash(dados.nova_senha)
+
+    db.commit()
+
+    return {"mensagem": "Senha alterada com sucesso!"}
 
 @app.put("/usuario/{usuario_id}", response_model=UsuarioResponse) # Funcao para atualizar os dados do usuario.
 def atualizar_usuario(

@@ -45,6 +45,13 @@ const API = {
         return await this.request("/me");
     },
 
+    async alterarSenha(dados) {
+        return await this.request("/usuario/senha", {
+            method: "PUT",
+            body: JSON.stringify(dados)
+        });
+    },
+
     async getQuestionario() {
         return await this.request("/questionario");
     },

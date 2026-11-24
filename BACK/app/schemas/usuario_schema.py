@@ -7,6 +7,10 @@ class UsuarioSchema(BaseModel):  # Representa os dados necessários para cadastr
     email: str
     senha: str
 
+class AlterarSenhaSchema(BaseModel):
+    senha_atual: str
+    nova_senha: str
+
 class UsuarioResponse(BaseModel):
     id: int
     nome: str
