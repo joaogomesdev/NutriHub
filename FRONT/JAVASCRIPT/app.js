@@ -1729,6 +1729,9 @@ async submit(form) {
             password
         );
 
+        // Realiza o login automaticamente para obter o token JWT.
+        await AuthService.login(email, password);
+
         // Adapta os dados recebidos ao formato do frontend.
         const newUser = {
             id: dadosUsuario.id,
@@ -1770,82 +1773,85 @@ const LoginModule = {
 
     FormGuard.bind(form, () => this.submit());
   },
-async submit() {
-    if (this.submitting) return;
+  async submit() {
+      if (this.submitting) return;
 
-    const emailInput =
-        document.getElementById('email') ||
-        document.querySelector('input[type="email"]');
+      const emailInput =
+          document.getElementById('email') ||
+          document.querySelector('input[type="email"]');
 
-    const passwordInput =
-        document.getElementById('password') ||
-        document.querySelector('input[type="password"]');
+      const passwordInput =
+          document.getElementById('password') ||
+          document.querySelector('input[type="password"]');
 
-    const email = emailInput ? emailInput.value.trim() : '';
-    const password = passwordInput ? passwordInput.value : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
 
-    if (!email || !password) {
-        UI.showToast('Informe seu e-mail e senha.', 'error');
-        return;
-    }
+      if (!email || !password) {
+          UI.showToast('Informe seu e-mail e senha.', 'error');
+          return;
+      }
 
-    this.submitting = true;
+      this.submitting = true;
 
-    try {
-        // 1. Realiza o login e recebe o token JWT.
-        await AuthService.login(email, password);
+      try {
+          // 1. Realiza o login e recebe o token JWT.
+          await AuthService.login(email, password);
 
-        // 2. Busca os dados reais do usuário autenticado.
-        const dadosUsuario = await API.request('/me');
+          // 2. Busca os dados reais do usuário autenticado.
+          const dadosUsuario = await API.request('/me');
 
-        // 3. Adapta os dados do backend ao formato do frontend.
-        const user = {
-            id: dadosUsuario.id,
-            name: dadosUsuario.nome,
-            email: dadosUsuario.email,
-            questionarioConcluido:
-                dadosUsuario.questionario_concluido
-        };
+          // 3. Adapta os dados do backend ao formato do frontend.
+          const user = {
+              id: dadosUsuario.id,
+              name: dadosUsuario.nome,
+              email: dadosUsuario.email,
+              questionarioConcluido:
+                  dadosUsuario.questionario_concluido
+          };
 
-        // 4. Cria a sessão no navegador.
-        Auth.createSession(user);
+          // 4. Cria a sessão no navegador.
+          Auth.createSession(user);
 
-        // 5. Carrega as refeições do usuário.
-        try {
-            await MealService.getAll(user.id);
-        } catch (error) {
-            console.error(
-                '[NutriHub] Erro ao carregar refeições no login:',
-                error
-            );
-        }
+          // 5. Carrega as refeições do usuário.
+          try {
+              await MealService.getAll(user.id);
+          } catch (error) {
+              console.error(
+                  '[NutriHub] Erro ao carregar refeições no login:',
+                  error
+              );
+          }
 
-        // 6. Exibe a mensagem de sucesso.
-        UI.showToast(
-            'Login efetuado com sucesso!',
-            'success'
-        );
+          // 6. Exibe a mensagem de sucesso.
+          UI.showToast(
+              'Login efetuado com sucesso!',
+              'success'
+          );
 
-        // 5. Redireciona para a página inicial.
-        setTimeout(() => {
-            window.location.replace(CONFIG.PATHS.HOME);
-        }, 800);
+          // 5. Redireciona para a página inicial.
+          setTimeout(() => {
+              const destino = user.questionarioConcluido
+                  ? CONFIG.PATHS.HOME
+                  : CONFIG.PATHS.QUESTIONARIO;
 
-    } catch (erro) {
+              window.location.replace(destino);
+          }, 800);
 
-        // Remove o token caso a autenticação ou consulta falhe.
-        AuthService.logout();
+      } catch (erro) {
 
-        UI.showToast(
-            erro.message || 'Não foi possível realizar o login.',
-            'error'
-        );
+          // Remove o token caso a autenticação ou consulta falhe.
+          AuthService.logout();
 
-    } finally {
-        this.submitting = false;
-    }
-}
+          UI.showToast(
+              erro.message || 'Não foi possível realizar o login.',
+              'error'
+          );
 
+      } finally {
+          this.submitting = false;
+      }
+  }
 };
 
 const QuestionnaireModule = {
@@ -1920,7 +1926,7 @@ const QuestionnaireModule = {
       document.querySelector('form');
   },
 
-async complete(plano) {
+  async complete(plano) {
     if (this.saving) return;
 
     const user = Auth.getAuthenticatedUser();
@@ -1959,7 +1965,7 @@ async complete(plano) {
             'error'
         );
     }
-},
+  },
 
   readPlan() {
     const text = (id) => {

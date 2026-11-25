@@ -515,13 +515,12 @@ def salvar_resposta(
     }
 
 
-
 @app.post("/questionario/concluir")
 def concluir_questionario(
     dados: PlanoAlimentarSchema,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obter_usuario_autenticado)
-):
+    ):
     # 1. Busca o questionário do usuário.
     questionario = db.query(Questionario).filter(
         Questionario.usuario_id == usuario.id
@@ -545,11 +544,54 @@ def concluir_questionario(
         RespostaQuestionario.questionario_id == questionario.id
     ).count()
 
-    if total_respostas < 27:
+    if total_respostas < 28:
         raise HTTPException(
             status_code=409,
-            detail="Responda todas as 27 perguntas antes de concluir."
+            detail="Responda todas as 28 perguntas antes de concluir."
         )
+
+    # Recupera o objetivo nutricional escolhido no questionário.
+    resposta_objetivo = db.query(RespostaQuestionario).filter(
+        RespostaQuestionario.questionario_id == questionario.id,
+        RespostaQuestionario.pergunta_codigo == "q28"
+    ).first()
+
+    if not resposta_objetivo:
+        raise HTTPException(
+            status_code=409,
+            detail="O objetivo nutricional não foi informado."
+        )
+
+    objetivo_escolhido = resposta_objetivo.resposta
+
+    # Verifica se o objetivo escolhido é válido.
+    objetivos_validos = [
+        "emagrecer",
+        "ganhar_massa_muscular",
+        "manter_peso",
+        "melhorar_habitos"
+    ]
+
+    if objetivo_escolhido not in objetivos_validos:
+        raise HTTPException(
+            status_code=422,
+            detail="Objetivo nutricional inválido."
+        )
+
+    # Busca o objetivo nutricional do usuário.
+    objetivo = db.query(ObjetivoNutricional).filter(
+        ObjetivoNutricional.usuario_id == usuario.id
+    ).first()
+
+    # Atualiza ou cria o objetivo.
+    if objetivo:
+        objetivo.objetivo = objetivo_escolhido
+    else:
+        novo_objetivo = ObjetivoNutricional(
+            usuario_id=usuario.id,
+            objetivo=objetivo_escolhido
+        )
+        db.add(novo_objetivo)
 
     # 4. Verifica se o usuário já possui um plano alimentar.
     plano = db.query(PlanoAlimentar).filter(
