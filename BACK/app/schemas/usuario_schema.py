@@ -9,13 +9,17 @@ class UsuarioSchema(BaseModel): # Representa os dados necessários para cadastra
 
     @field_validator("email")
     @classmethod
-    def validar_extensao_email(cls, email):
-        dominio = str(email).rsplit("@", 1)[1]
-        extensao = dominio.rsplit(".", 1)[-1]
+    def validar_dominio_email(cls, email):
+        dominio = str(email).rsplit("@", 1)[1].lower()
 
-        if len(extensao) < 2:
+        dominios_permitidos = {
+            "gmail.com",
+            "hotmail.com"
+        }
+
+        if dominio not in dominios_permitidos:
             raise ValueError(
-                "A extensão do e-mail deve possuir pelo menos duas letras."
+                "Utilize um endereço Gmail ou Hotmail."
             )
 
         return email

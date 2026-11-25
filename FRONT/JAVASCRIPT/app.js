@@ -1194,8 +1194,21 @@ const Utils = {
   },
 
   validateEmail(email) {
-      const re = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
-      return re.test(String(email).trim());
+      const valor = String(email).trim().toLowerCase();
+
+      const formatoValido =
+          /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/.test(valor);
+
+      if (!formatoValido) return false;
+
+      const dominio = valor.split('@')[1];
+
+      const dominiosPermitidos = [
+          'gmail.com',
+          'hotmail.com'
+      ];
+
+      return dominiosPermitidos.includes(dominio);
   },
 
   normalize(str) {
@@ -1698,7 +1711,10 @@ async submit(form) {
 
     // Valida o formato do e-mail.
     if (!Utils.validateEmail(email)) {
-        UI.showToast('Por favor, insira um e-mail válido.', 'error');
+        UI.showToast(
+            'Utilize um endereço Gmail ou Hotmail válido.',
+            'error'
+        );
         return;
     }
 
