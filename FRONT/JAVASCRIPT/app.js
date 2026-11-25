@@ -1949,6 +1949,10 @@ const QuestionnaireModule = {
             body: JSON.stringify(plano)
         });
 
+        // Atualiza o status do questionário na sessão local.
+        user.questionarioConcluido = true;
+        Auth.createSession(user);
+
         UI.showToast('Questionário concluído com sucesso!', 'success');
 
         setTimeout(() => {
