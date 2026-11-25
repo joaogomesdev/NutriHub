@@ -1194,8 +1194,8 @@ const Utils = {
   },
 
   validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(String(email).toLowerCase());
+      const re = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+      return re.test(String(email).trim());
   },
 
   normalize(str) {

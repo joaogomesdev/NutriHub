@@ -1,11 +1,24 @@
-from pydantic import BaseModel # Validação dos dados recebidos do front-end
+from pydantic import BaseModel, EmailStr, field_validator # Validação dos dados recebidos do front-end
 
 # Nosso tratamento de entrada e saída de dados do usuário.
 
-class UsuarioSchema(BaseModel):  # Representa os dados necessários para cadastrar ou atualizar um usuário.
+class UsuarioSchema(BaseModel): # Representa os dados necessários para cadastrar ou atualizar um usuário.
     nome: str
-    email: str
+    email: EmailStr
     senha: str
+
+    @field_validator("email")
+    @classmethod
+    def validar_extensao_email(cls, email):
+        dominio = str(email).rsplit("@", 1)[1]
+        extensao = dominio.rsplit(".", 1)[-1]
+
+        if len(extensao) < 2:
+            raise ValueError(
+                "A extensão do e-mail deve possuir pelo menos duas letras."
+            )
+
+        return email
 
 class AlterarSenhaSchema(BaseModel):
     senha_atual: str
