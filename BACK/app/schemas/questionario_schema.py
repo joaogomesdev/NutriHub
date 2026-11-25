@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 class RespostaQuestionarioSchema(BaseModel):
 
     pergunta_codigo: str = Field(
-        pattern=r"^q([1-9]|1[0-9]|2[0-7])$"
+        pattern=r"^q([1-9]|1[0-9]|2[0-8])$"
     )
 
     resposta: str = Field(min_length=1)

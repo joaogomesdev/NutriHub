@@ -488,7 +488,7 @@ def salvar_resposta(
     # 5. Atualiza o progresso somente se for a pergunta atual.
     if numero_pergunta == questionario.pergunta_atual:
 
-        if numero_pergunta < 27:
+        if numero_pergunta < 28:
             questionario.pergunta_atual += 1
 
         # Atualiza o bloco conforme a próxima pergunta.
@@ -502,8 +502,10 @@ def salvar_resposta(
             questionario.bloco_atual = 4
         elif questionario.pergunta_atual <= 23:
             questionario.bloco_atual = 5
-        else:
+        elif questionario.pergunta_atual <= 27:
             questionario.bloco_atual = 6
+        else:
+            questionario.bloco_atual = 7
 
     db.commit()
 
