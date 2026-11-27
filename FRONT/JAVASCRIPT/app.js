@@ -5177,36 +5177,35 @@ async init() {
       const card = document.createElement('article');
       card.className = 'goal-card';
 
-      card.innerHTML = `
+     card.innerHTML = `
         <div class="goal-card-header">
           <div>
             <span class="goal-category-badge">${Utils.sanitizeHTML(meta.category || 'Geral')}</span>
-            <h4 class="goal-card-title" style="margin-top: 6px;">${Utils.sanitizeHTML(meta.title)}</h4>
+            <h4 class="goal-card-title">${Utils.sanitizeHTML(meta.title)}</h4>
           </div>
           <button type="button" class="btn-delete-goal"
                   data-delete-goal="${Utils.escapeAttr(meta.id)}"
                   aria-label="Excluir meta">Excluir</button>
         </div>
 
-        <div class="goal-progress-info" style="margin-top: 12px;">
+        <div class="goal-progress-info">
           <span>Progresso</span>
           <span>${Utils.sanitizeHTML(String(current))} / ${Utils.sanitizeHTML(String(meta.target))}
             ${Utils.sanitizeHTML(meta.unit || '')} (${percent}%)</span>
         </div>
 
-        <div class="goal-progress-bar goal-progress-track" style="margin-top: 8px;">
+        <div class="goal-progress-bar goal-progress-track">
           <div class="goal-progress-fill" style="width: ${percent}%;"></div>
         </div>
 
         ${isWater
-          ? '<span class="goal-hint" style="display:block;margin-top:8px;font-size:0.8rem;opacity:0.75;">💧 Atualizada automaticamente com a água registrada hoje.</span>'
-          : `<button type="button" class="btn-toggle-goal"
-                     data-toggle-goal="${Utils.escapeAttr(meta.id)}"
-                     style="margin-top:10px;">
+          ? '<span class="goal-hint">💧 Atualizada automaticamente com a água registrada hoje.</span>'
+          : `<button type="button" class="btn-toggle-goal ${meta.concluida ? 'is-done' : ''}"
+                     data-toggle-goal="${Utils.escapeAttr(meta.id)}">
                ${meta.concluida ? 'Reabrir meta' : 'Marcar como concluída'}
              </button>`}
 
-        ${meta.concluida ? '<span class="goal-completed" style="display:block;margin-top:8px;">✅ Meta concluída!</span>' : ''}
+        ${meta.concluida ? '<span class="goal-completed">✅ Meta concluída!</span>' : ''}
       `;
 
       grid.appendChild(card);
