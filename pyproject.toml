@@ -30,4 +30,4 @@ dependencies = [
 ]
 
 [tool.vercel]
-entrypoint = "BACK/app.main:app"
+entrypoint = "BACK.app.main:app"
