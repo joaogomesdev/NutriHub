@@ -3,7 +3,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Preparando a comunicação do banco de dados com o Back-End.
 
-DATABASE_URL = "sqlite:///./nutrihub.db"
+import os
+if os.getenv("VERCEL"):
+    DATABASE_URL = "sqlite:////tmp/nutrihub.db"
+else:
+    DATABASE_URL = "sqlite:///./nutrihub.db"
 
 engine = create_engine(
     DATABASE_URL,
