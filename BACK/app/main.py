@@ -877,3 +877,25 @@ def atualizar_perfil(
     db.refresh(perfil)
 
     return perfil
+
+# ==========================================
+# Configuração para deploy (Vercel)
+# ==========================================
+
+from pathlib import Path
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
+PASTA_FRONT = Path(__file__).resolve().parents[2] / "FRONT"
+
+api_app = app
+app = FastAPI()
+
+
+@app.get("/", include_in_schema=False)
+def pagina_inicial():
+    return RedirectResponse("/HTML/index.html")
+
+
+app.mount("/api", api_app)
+app.mount("/", StaticFiles(directory=PASTA_FRONT, html=True), name="front")
